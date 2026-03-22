@@ -1,8 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from database import SessionLocal, engine
 from models import Base, TankLog
 from pydantic import BaseModel
+import os
 
 app = FastAPI()
 
@@ -13,6 +15,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 Base.metadata.create_all(bind=engine)
 
 class LogCreate(BaseModel):
@@ -23,24 +26,17 @@ class LogCreate(BaseModel):
     temperature: float
     notes: str
 
-# Dependency
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 @app.post("/logs")
 def create_log(log: LogCreate):
     db = SessionLocal()
 
     new_log = TankLog(
-        date=log.get("date"),
-        ph=log.get("ph"),
-        salinity=log.get("salinity"),
-        nitrate=log.get("nitrate"),
-        temperature=log.get("temperature"),
-        notes=log.get("notes")
+        date=log.date,
+        ph=log.ph,
+        salinity=log.salinity,
+        nitrate=log.nitrate,
+        temperature=log.temperature,
+        notes=log.notes
     )
 
     db.add(new_log)
@@ -52,5 +48,12 @@ def create_log(log: LogCreate):
 @app.get("/logs")
 def get_logs():
     db = SessionLocal()
-    logs = db.query(TankLog).all()
-    return logs
+    return db.query(TankLog).all()
+
+# Serve React frontend
+frontend_path = os.path.join(os.path.dirname(__file__), "../frontend/build")
+
+if os.path.exists(frontend_path):
+    app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+else:
+    print("⚠️ frontend/build not found. Run npm run build")
